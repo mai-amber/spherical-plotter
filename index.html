@@ -179,14 +179,14 @@
             </div>
         </div>
         
-        <button onclick="generatePlot()">Generate Plot</button>
+        <button onclick="generatePlot()">Generate Plot (Top View)</button>
         <button class="example-button" onclick="loadExampleData()">Load Example Data</button>
         
         <div class="view-buttons">
             <label style="font-weight: 600;">Select View: </label>
-            <button onclick="generatePlot('xy')">Top-Down (X-Y)</button>
-            <button onclick="generatePlot('xz')">Side View (X-Z)</button>
-            <button onclick="generatePlot('yz')">Front View (Y-Z)</button>
+            <button onclick="generatePlot('xz')">Top View (X-Z)</button>
+            <button onclick="generatePlot('xy')">Front View (X-Y)</button>
+            <button onclick="generatePlot('yz')">Side View (Z-Y)</button>
             <button onclick="generatePlot('spherical')">Spherical (φ-θ)</button>
             <br>
             <label style="margin-top: 10px; display: inline-block;">
@@ -197,13 +197,19 @@
         <div id="plotDiv"></div>
         
         <div class="info-box">
-            <h3>Available Views:</h3>
+            <h3>Available Views (Y-up coordinate system):</h3>
             <ul>
-                <li><strong>Top-Down (X-Y)</strong>: Shows the data from above, Z-coordinate hidden</li>
-                <li><strong>Side View (X-Z)</strong>: Shows the data from the side, Y-coordinate hidden</li>
-                <li><strong>Front View (Y-Z)</strong>: Shows the data from the front, X-coordinate hidden</li>
-                <li><strong>Spherical (φ-θ)</strong>: Shows angular positions in spherical coordinates</li>
+                <li><strong>Top View (X-Z)</strong>: Looking down from above, Y-coordinate (height) hidden</li>
+                <li><strong>Front View (X-Y)</strong>: Looking from the front, Z-coordinate hidden</li>
+                <li><strong>Side View (Z-Y)</strong>: Looking from the side, X-coordinate hidden, Y on vertical axis</li>
+                <li><strong>Spherical (φ-θ)</strong>: θ = angle from Y-axis (vertical), φ = angle in X-Z plane</li>
             </ul>
+            <p style="margin-top: 15px; font-size: 14px; color: #666;">
+                <strong>Spherical coordinates (Y-up):</strong><br>
+                • ρ = √(x² + y² + z²)<br>
+                • θ = arccos(y/ρ) — angle from vertical Y-axis [0 to π]<br>
+                • φ = atan2(z, x) — angle in horizontal X-Z plane [-π to π]
+            </p>
         </div>
     </div>
     
@@ -881,12 +887,13 @@
             return points.map(([x, y, z]) => ({ x, y, z }));
         }
         
-        // Convert Cartesian to spherical coordinates
+        // Convert Cartesian to spherical coordinates (Y-up coordinate system)
         function cartesianToSpherical(points) {
             return points.map(([x, y, z]) => {
                 const r = Math.sqrt(x*x + y*y + z*z);
-                const theta = Math.acos(z / r);  // θ ∈ [0, π]
-                const phi = Math.atan2(y, x);    // φ ∈ [-π, π]
+                if (r === 0) return { r: 0, theta: 0, phi: 0 };
+                const theta = Math.acos(y / r);  // θ from Y-axis (vertical)
+                const phi = Math.atan2(z, x);    // φ in X-Z plane (horizontal)
                 return { r, theta, phi };
             });
         }
@@ -895,10 +902,10 @@
         function loadExampleData() {
             document.getElementById('data1').value = exampleData1;
             document.getElementById('data2').value = exampleData2;
-            generatePlot('xy');  // Default to top-down view
+            generatePlot('xz');  // Default to top view (X-Z)
         }
         
-        let currentView = 'xy';
+        let currentView = 'xz';
         
         // Toggle lines function
         function toggleLines() {
@@ -906,7 +913,7 @@
         }
         
         // Main plotting function
-        function generatePlot(view = 'xy') {
+        function generatePlot(view = 'xz') {
             currentView = view;
             const showLines = document.getElementById('showLines').checked;
             const plotMode = showLines ? 'lines+markers' : 'markers';
@@ -957,18 +964,24 @@
                     };
                     
                     layout = {
-                        title: 'Spherical Coordinates (φ vs θ)',
+                        title: 'Spherical Coordinates (φ vs θ) - Y-up system',
                         xaxis: {
-                            title: 'φ (radians)',
+                            title: 'φ (angle in X-Z plane)',
                             zeroline: true,
                             gridcolor: '#e0e0e0',
-                            range: [-Math.PI - 0.5, Math.PI + 0.5]
+                            range: [-Math.PI - 0.5, Math.PI + 0.5],
+                            dtick: Math.PI/4,
+                            tickvals: [-Math.PI, -3*Math.PI/4, -Math.PI/2, -Math.PI/4, 0, Math.PI/4, Math.PI/2, 3*Math.PI/4, Math.PI],
+                            ticktext: ['-π', '-3π/4', '-π/2', '-π/4', '0', 'π/4', 'π/2', '3π/4', 'π']
                         },
                         yaxis: {
-                            title: 'θ (radians)',
+                            title: 'θ (angle from Y-axis)',
                             zeroline: true,
                             gridcolor: '#e0e0e0',
-                            range: [-0.5, Math.PI + 0.5]
+                            range: [-0.5, Math.PI + 0.5],
+                            dtick: Math.PI/4,
+                            tickvals: [0, Math.PI/4, Math.PI/2, 3*Math.PI/4, Math.PI],
+                            ticktext: ['0', 'π/4', 'π/2', '3π/4', 'π']
                         }
                     };
                 } else {
@@ -979,32 +992,32 @@
                     let x1, y1, x2, y2, xLabel, yLabel, title;
                     
                     switch(view) {
-                        case 'xz':
-                            x1 = coords1.map(p => p.x);
-                            y1 = coords1.map(p => p.z);
-                            x2 = coords2.map(p => p.x);
-                            y2 = coords2.map(p => p.z);
-                            xLabel = 'X';
-                            yLabel = 'Z';
-                            title = 'Side View (X-Z Plane)';
-                            break;
-                        case 'yz':
-                            x1 = coords1.map(p => p.y);
-                            y1 = coords1.map(p => p.z);
-                            x2 = coords2.map(p => p.y);
-                            y2 = coords2.map(p => p.z);
-                            xLabel = 'Y';
-                            yLabel = 'Z';
-                            title = 'Front View (Y-Z Plane)';
-                            break;
-                        default: // 'xy'
+                        case 'xy':
                             x1 = coords1.map(p => p.x);
                             y1 = coords1.map(p => p.y);
                             x2 = coords2.map(p => p.x);
                             y2 = coords2.map(p => p.y);
                             xLabel = 'X';
-                            yLabel = 'Y';
-                            title = 'Top-Down View (X-Y Plane)';
+                            yLabel = 'Y (vertical)';
+                            title = 'Front View (X-Y Plane)';
+                            break;
+                        case 'yz':
+                            x1 = coords1.map(p => p.z);
+                            y1 = coords1.map(p => p.y);
+                            x2 = coords2.map(p => p.z);
+                            y2 = coords2.map(p => p.y);
+                            xLabel = 'Z';
+                            yLabel = 'Y (vertical)';
+                            title = 'Side View (Z-Y Plane)';
+                            break;
+                        default: // 'xz'
+                            x1 = coords1.map(p => p.x);
+                            y1 = coords1.map(p => p.z);
+                            x2 = coords2.map(p => p.x);
+                            y2 = coords2.map(p => p.z);
+                            xLabel = 'X';
+                            yLabel = 'Z';
+                            title = 'Top View (X-Z Plane) - Looking down';
                     }
                     
                     trace1 = {
