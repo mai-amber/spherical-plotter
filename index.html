@@ -151,6 +151,14 @@
             font-size: 14px;
             margin: 0 2px;
         }
+        
+        .view-buttons button[onclick*="timeseries"] {
+            background-color: #9C27B0;
+        }
+        
+        .view-buttons button[onclick*="timeseries"]:hover {
+            background-color: #7B1FA2;
+        }
     </style>
 </head>
 <body>
@@ -188,9 +196,13 @@
             <button onclick="generatePlot('xy')">Front View (X-Y)</button>
             <button onclick="generatePlot('yz')">Side View (Z-Y)</button>
             <button onclick="generatePlot('spherical')">Spherical (φ-θ)</button>
+            <button onclick="generatePlot('timeseries')">Time Series</button>
             <br>
             <label style="margin-top: 10px; display: inline-block;">
                 <input type="checkbox" id="showLines" checked onchange="toggleLines()"> Show connecting lines
+            </label>
+            <label id="relativePhiLabel" style="margin-left: 20px; display: none;">
+                <input type="checkbox" id="relativePhiCheckbox" checked onchange="toggleLines()"> Show φ relative to φ₁[0]
             </label>
         </div>
         
@@ -203,12 +215,19 @@
                 <li><strong>Front View (X-Y)</strong>: Looking from the front, Z-coordinate hidden</li>
                 <li><strong>Side View (Z-Y)</strong>: Looking from the side, X-coordinate hidden, Y on vertical axis</li>
                 <li><strong>Spherical (φ-θ)</strong>: θ = angle from Y-axis (vertical), φ = angle in X-Z plane</li>
+                <li><strong>Time Series</strong>: Shows θ and φ angles vs time (optionally φ-φ₁[0])</li>
             </ul>
             <p style="margin-top: 15px; font-size: 14px; color: #666;">
                 <strong>Spherical coordinates (Y-up):</strong><br>
                 • ρ = √(x² + y² + z²)<br>
                 • θ = arccos(y/ρ) — angle from vertical Y-axis [0 to π]<br>
                 • φ = atan2(z, x) — angle in horizontal X-Z plane [-π to π]
+            </p>
+            <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                <strong>Time Series colors:</strong><br>
+                • Dataset 1 (target): θ₁ (solid black), φ₁ (dashed black)<br>
+                • Dataset 2 (X set): θ₂ (pink), φ₂ (cyan)<br>
+                • Toggle "Show φ relative to φ₁[0]" to normalize φ values
             </p>
         </div>
     </div>
@@ -905,6 +924,11 @@
             generatePlot('xz');  // Default to top view (X-Z)
         }
         
+        // Initialize UI on page load
+        window.onload = function() {
+            updateUIVisibility();
+        }
+        
         let currentView = 'xz';
         
         // Toggle lines function
@@ -912,9 +936,16 @@
             generatePlot(currentView);
         }
         
+        // Update visibility of relative phi checkbox
+        function updateUIVisibility() {
+            const relativePhiLabel = document.getElementById('relativePhiLabel');
+            relativePhiLabel.style.display = currentView === 'timeseries' ? 'inline-block' : 'none';
+        }
+        
         // Main plotting function
         function generatePlot(view = 'xz') {
             currentView = view;
+            updateUIVisibility();
             const showLines = document.getElementById('showLines').checked;
             const plotMode = showLines ? 'lines+markers' : 'markers';
             try {
@@ -938,7 +969,90 @@
                 
                 let trace1, trace2, layout;
                 
-                if (view === 'spherical') {
+                if (view === 'timeseries') {
+                    // Time series view of spherical coordinates
+                    const spherical1 = cartesianToSpherical(set1);
+                    const spherical2 = cartesianToSpherical(set2);
+                    
+                    // Create time indices
+                    const time1 = Array.from({length: spherical1.length}, (_, i) => i);
+                    const time2 = Array.from({length: spherical2.length}, (_, i) => i);
+                    
+                    // Create traces for all angles
+                    const trace_theta1 = {
+                        x: time1,
+                        y: spherical1.map(p => p.theta),
+                        mode: plotMode,
+                        type: 'scatter',
+                        name: 'θ₁ (target)',
+                        marker: { color: 'black', size: 4 },
+                        line: { color: 'black', width: 2 }
+                    };
+                    
+                    const trace_phi1 = {
+                        x: time1,
+                        y: spherical1.map(p => p.phi),
+                        mode: plotMode,
+                        type: 'scatter',
+                        name: 'φ₁ (target)',
+                        marker: { color: 'black', size: 4, symbol: 'square' },
+                        line: { color: 'black', width: 2, dash: 'dash' }
+                    };
+                    
+                    const trace_theta2 = {
+                        x: time2,
+                        y: spherical2.map(p => p.theta),
+                        mode: plotMode,
+                        type: 'scatter',
+                        name: 'θ₂ (X set)',
+                        marker: { color: '#FF4081', size: 4 },
+                        line: { color: '#FF4081', width: 2 }
+                    };
+                    
+                    const trace_phi2 = {
+                        x: time2,
+                        y: spherical2.map(p => p.phi),
+                        mode: plotMode,
+                        type: 'scatter',
+                        name: 'φ₂ (X set)',
+                        marker: { color: '#00BCD4', size: 4 },
+                        line: { color: '#00BCD4', width: 2 }
+                    };
+                    
+                    layout = {
+                        title: 'Time Series of Spherical Coordinates',
+                        xaxis: {
+                            title: 'Time (index)',
+                            zeroline: true,
+                            zerolinecolor: '#444',
+                            zerolinewidth: 2,
+                            gridcolor: '#e0e0e0',
+                            showgrid: true
+                        },
+                        yaxis: {
+                            title: 'Angle (radians)',
+                            zeroline: true,
+                            zerolinecolor: '#444',
+                            zerolinewidth: 2,
+                            gridcolor: '#e0e0e0',
+                            showgrid: true,
+                            dtick: Math.PI/4,
+                            tickvals: [-Math.PI, -3*Math.PI/4, -Math.PI/2, -Math.PI/4, 0, Math.PI/4, Math.PI/2, 3*Math.PI/4, Math.PI],
+                            ticktext: ['-π', '-3π/4', '-π/2', '-π/4', '0', 'π/4', 'π/2', '3π/4', 'π']
+                        },
+                        plot_bgcolor: '#f8f9fa',
+                        hovermode: 'x unified',
+                        showlegend: true,
+                        legend: { x: 1, y: 1 },
+                        width: 800,
+                        height: 600
+                    };
+                    
+                    // Create the plot with all four traces
+                    Plotly.newPlot('plotDiv', [trace_theta1, trace_phi1, trace_theta2, trace_phi2], layout);
+                    return;
+                    
+                } else if (view === 'spherical') {
                     // Convert to spherical coordinates
                     const spherical1 = cartesianToSpherical(set1);
                     const spherical2 = cartesianToSpherical(set2);
